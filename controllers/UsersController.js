@@ -14,13 +14,14 @@ class UsersController {
       return;
     }
     const users = dbClient.db.collection('users');
-    users.findOne({ email }, async (err, user) => {
+    users.findOne({ email }, (err, user) => {
       if (user) {
         response.status(400).json({ error: 'Already exist' });
       } else {
         const hashedPass = sha1(password);
-        const result = await users.insertOne({ email, password: hashedPass });
-        response.status(201).json({ _id: result.insertedId, email });
+        users.insertOne({ email, password: hashedPass }).then((result) => {
+          response.status(201).json({ _id: result.insertedId, email });
+        });
       }
     });
   }
