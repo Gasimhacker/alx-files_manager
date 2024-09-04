@@ -21,6 +21,8 @@ class UsersController {
         const hashedPass = sha1(password);
         users.insertOne({ email, password: hashedPass }).then((result) => {
           response.status(201).json({ _id: result.insertedId, email });
+        }).catch((err) => {
+          console.log(err);
         });
       }
     });
