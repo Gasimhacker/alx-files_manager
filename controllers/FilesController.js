@@ -1,4 +1,5 @@
 import { v4 as uuidv4 } from 'uuid';
+import { ObjectID } from 'mongodb';
 import dbClient from '../utils/db';
 import redisClient from '../utils/redis';
 
@@ -9,7 +10,7 @@ class FilesController {
   static async postUpload(request, response) {
     const token = request.header('X-Token');
     const { name, type } = request.body;
-    const parentId = parseInt(request.body.parentId, 10) || 0;
+    const parentId = request.body.parentId || 0;
     const isPublic = request.body.isPublic || false;
     const userId = await redisClient.get(`auth_${token}`);
     const saveDir = process.env.FOLDER_PATH || '/tmp/files_manager';
@@ -37,7 +38,8 @@ class FilesController {
     }
     const files = dbClient.db.collection('files');
     if (parentId) {
-      const file = await files.findOne({ parentId });
+      const _id = new ObjectID(parentId);
+      const file = await files.findOne({ _id, userId });
       if (!file) {
         response.status(400).json({ error: 'Parent not found' });
         return;
