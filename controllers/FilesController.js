@@ -70,7 +70,6 @@ class FilesController {
       });
     } else {
       const localPath = path.join(saveDir, uuidv4());
-      console.log(localPath);
       await fs.mkdir(saveDir, { recursive: true });
       await fs.writeFile(localPath, data);
       files.insertOne({
@@ -172,6 +171,91 @@ class FilesController {
         response.status(404).json({ error: 'Not found' });
       }
     });
+  }
+
+  static async putPublish(request, response) {
+    const token = request.header('X-Token');
+    const { id } = request.params;
+    let userId = await redisClient.get(`auth_${token}`);
+
+    if (!userId) {
+      response.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    userId = new ObjectID(userId);
+
+    const files = dbClient.db.collection('files');
+    const _id = new ObjectID(id);
+    const result = await files.findOneAndUpdate(
+      {
+        _id, userId,
+      },
+      {
+        $set: { isPublic: true },
+      },
+      {
+        returnDocument: 'after',
+      },
+    );
+
+    const file = result.value;
+    if (!file) {
+      response.status(404).json({ error: 'Not found' });
+      return;
+    }
+    response.status(200).json(
+      {
+        id: file._id,
+        userId: file.userId,
+        name: file.name,
+        type: file.type,
+        isPublic: file.isPublic,
+        parentId: file.parentId,
+      },
+    );
+  }
+
+  static async putUnpublish(request, response) {
+    const token = request.header('X-Token');
+    const { id } = request.params;
+    let userId = await redisClient.get(`auth_${token}`);
+
+    if (!userId) {
+      response.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    userId = new ObjectID(userId);
+
+    const files = dbClient.db.collection('files');
+    const _id = new ObjectID(id);
+    const result = await files.findOneAndUpdate(
+      {
+        _id, userId,
+      },
+      {
+        $set: { isPublic: false },
+      },
+      {
+        returnDocument: 'after',
+      },
+    );
+    const file = result.value;
+    if (!file) {
+      response.status(404).json({ error: 'Not found' });
+      return;
+    }
+    response.status(200).json(
+      {
+        id: file._id,
+        userId: file.userId,
+        name: file.name,
+        type: file.type,
+        isPublic: file.isPublic,
+        parentId: file.parentId,
+      },
+    );
   }
 }
 module.exports = FilesController;
