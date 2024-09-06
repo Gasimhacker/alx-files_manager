@@ -238,7 +238,7 @@ class FilesController {
         $set: { isPublic: false },
       },
       {
-        returnDocument: 'after',
+        returnOriginal: false,
       },
     );
     const file = result.value;
