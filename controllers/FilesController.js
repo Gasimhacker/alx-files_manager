@@ -91,5 +91,87 @@ class FilesController {
       });
     }
   }
+
+  static async getShow(request, response) {
+    const token = request.header('X-Token');
+    const { id } = request.params;
+    let userId = await redisClient.get(`auth_${token}`);
+
+    if (!userId) {
+      response.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    userId = new ObjectID(userId);
+
+    const files = dbClient.db.collection('files');
+    const _id = new ObjectID(id);
+    const file = await files.findOne({ _id, userId });
+    if (!file) {
+      response.status(404).json({ error: 'Not found' });
+      return;
+    }
+    response.status(200).json(
+      {
+        id: file._id,
+        userId: file.userId,
+        name: file.name,
+        type: file.type,
+        isPublic: file.isPublic,
+        parentId: file.parentId,
+      },
+    );
+  }
+
+  static async getIndex(request, response) {
+    const token = request.header('X-Token');
+    const page = parseInt(request.query.page, 10);
+    let parentId = request.query.parentId || 0;
+    let userId = await redisClient.get(`auth_${token}`);
+    let query;
+
+    if (!userId) {
+      response.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+
+    userId = new ObjectID(userId);
+    if (parentId) {
+      parentId = new ObjectID(parentId);
+      query = { parentId, userId };
+    } else {
+      query = { userId };
+    }
+
+    const files = dbClient.db.collection('files');
+    files.aggregate(
+      [
+        { $match: query },
+        {
+          $set: {
+            id: '$_id',
+          },
+        },
+        {
+          $unset: [
+            'localPath',
+            '_id',
+          ],
+        },
+        {
+          $skip: page * 20,
+        },
+        {
+          $limit: 20,
+        },
+      ],
+    ).toArray((err, result) => {
+      if (result) {
+        response.status(200).json(result);
+      } else {
+        response.status(404).json({ error: 'Not found' });
+      }
+    });
+  }
 }
 module.exports = FilesController;
