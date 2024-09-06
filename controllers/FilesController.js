@@ -195,7 +195,7 @@ class FilesController {
         $set: { isPublic: true },
       },
       {
-        returnDocument: 'after',
+        returnOriginal: false,
       },
     );
 
