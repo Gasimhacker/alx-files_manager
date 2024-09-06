@@ -5,6 +5,7 @@ import redisClient from '../utils/redis';
 
 const fs = require('fs').promises;
 const path = require('path');
+const mime = require('mime-types');
 
 class FilesController {
   static async postUpload(request, response) {
@@ -256,6 +257,41 @@ class FilesController {
         parentId: file.parentId,
       },
     );
+  }
+
+  static async getFile(request, response) {
+    const token = request.header('X-Token');
+    const { id } = request.params;
+    let userId = await redisClient.get(`auth_${token}`);
+
+    if (userId) {
+      userId = new ObjectID(userId);
+    }
+
+    const files = dbClient.db.collection('files');
+    const _id = new ObjectID(id);
+    const file = await files.findOne({ _id });
+
+    if (!file) {
+      response.status(404).json({ error: 'Not found' });
+      return;
+    }
+    if (!file.isPublic && (`${file.userId}` !== `${userId}`)) {
+      response.status(404).json({ error: 'Not found' });
+      return;
+    }
+    if (file.type === 'folder') {
+      response.status(400).json({ error: "A folder doesn't have content" });
+      return;
+    }
+    try {
+      const data = await fs.readFile(file.localPath, 'utf8');
+      const mimeType = mime.lookup(file.name);
+      response.set('Content-Type', mimeType);
+      response.status(200).send(data);
+    } catch (err) {
+      response.status(404).json({ error: 'Not found' });
+    }
   }
 }
 module.exports = FilesController;
