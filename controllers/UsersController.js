@@ -2,6 +2,9 @@ import dbClient from '../utils/db';
 import redisClient from '../utils/redis';
 
 const { ObjectId } = require('mongodb');
+const Queue = require('bull');
+
+const userQueue = new Queue('userQueue', 'redis://127.0.0.1:6379');
 
 const sha1 = require('sha1');
 
@@ -24,6 +27,9 @@ class UsersController {
         const hashedPass = sha1(password);
         users.insertOne({ email, password: hashedPass }).then((result) => {
           response.status(201).json({ id: result.insertedId, email });
+          userQueue.add({
+            userId: result.insertedId,
+          });
         }).catch((err) => {
           console.log(err);
         });
