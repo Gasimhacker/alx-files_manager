@@ -287,7 +287,9 @@ class FilesController {
     try {
       const data = await fs.readFile(file.localPath, 'utf8');
       const contentType = mime.contentType(file.name);
-      response.set('Content-Type', contentType);
+      if (contentType) {
+        response.set('Content-Type', contentType);
+      }
       response.status(200).send(data);
     } catch (err) {
       response.status(404).json({ error: 'Not found' });
