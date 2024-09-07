@@ -6,6 +6,9 @@ import redisClient from '../utils/redis';
 const fs = require('fs').promises;
 const path = require('path');
 const mime = require('mime-types');
+const Queue = require('bull');
+
+const fileQueue = new Queue('fileQueue', 'redis://127.0.0.1:6379');
 
 class FilesController {
   static async postUpload(request, response) {
@@ -17,7 +20,7 @@ class FilesController {
     let userId = await redisClient.get(`auth_${token}`);
     let { data } = request.body;
     if (data) {
-      data = Buffer.from(data, 'base64').toString('utf-8');
+      data = Buffer.from(data, 'base64');
     }
     if (!userId) {
       response.status(401).json({ error: 'Unauthorized' });
@@ -72,7 +75,7 @@ class FilesController {
     } else {
       const localPath = path.join(saveDir, uuidv4());
       await fs.mkdir(saveDir, { recursive: true });
-      await fs.writeFile(localPath, data);
+      await fs.writeFile(localPath, data, 'utf-8');
       files.insertOne({
         userId, name, type, isPublic, parentId, localPath,
       }).then((addedFile) => {
@@ -86,6 +89,12 @@ class FilesController {
             parentId,
           },
         );
+        if (type === 'image') {
+          fileQueue.add({
+            userId,
+            fileId: addedFile.insertedId,
+          });
+        }
       }).catch((err) => {
         console.log(err);
       });
@@ -261,6 +270,7 @@ class FilesController {
 
   static async getFile(request, response) {
     const token = request.header('X-Token');
+    const size = request.param('size');
     const { id } = request.params;
     let userId = await redisClient.get(`auth_${token}`);
 
@@ -285,12 +295,15 @@ class FilesController {
       return;
     }
     try {
-      const data = await fs.readFile(file.localPath, 'utf8');
+      let filePath = file.localPath;
+      if (size) {
+        filePath = `${filePath}_${size}`;
+      }
       const contentType = mime.contentType(file.name);
       if (contentType) {
         response.set('Content-Type', contentType);
       }
-      response.status(200).send(data);
+      response.status(200).sendFile(filePath);
     } catch (err) {
       response.status(404).json({ error: 'Not found' });
     }
